@@ -49,7 +49,6 @@
 
 #define PROGRAM_NAME "mkfs.jffs2"
 
-#define _GNU_SOURCE
 #include <sys/types.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -470,7 +469,7 @@ static int interpret_table_entry(struct filesystem_entry *root, char *line)
 	} else {
 		/* If parent is NULL (happens with device table entries),
 		 * try and find our parent now) */
-		tmp = strdup(name);
+		tmp = xstrdup(name);
 		dir = dirname(tmp);
 		parent = find_filesystem_entry(root, dir, S_IFDIR);
 		free(tmp);
@@ -1396,14 +1395,14 @@ static const char helptext[] =
 "                          page size (default: 4KiB)\n"
 "  -e, --eraseblock=SIZE   Use erase block size SIZE (default: 64KiB)\n"
 "  -c, --cleanmarker=SIZE  Size of cleanmarker (default 12)\n"
-"  -m, --compr-mode=MODE   Select compression mode (default: priortiry)\n"
+"  -m, --compr-mode=MODE   Select compression mode (default: priority)\n"
 "  -x, --disable-compressor=COMPRESSOR_NAME\n"
 "                          Disable a compressor\n"
 "  -X, --enable-compressor=COMPRESSOR_NAME\n"
 "                          Enable a compressor\n"
 "  -y, --compressor-priority=PRIORITY:COMPRESSOR_NAME\n"
 "                          Set the priority of a compressor\n"
-"  -L, --list-compressors  Show the list of the avaiable compressors\n"
+"  -L, --list-compressors  Show the list of the available compressors\n"
 "  -t, --test-compression  Call decompress and compare with the original (for test)\n"
 "  -n, --no-cleanmarkers   Don't add a cleanmarker to every eraseblock\n"
 "  -o, --output=FILE       Output to FILE (default: stdout)\n"

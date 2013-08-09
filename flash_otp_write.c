@@ -16,6 +16,23 @@
 #include <common.h>
 #include <mtd/mtd-user.h>
 
+ssize_t xread(int fd, void *buf, size_t count)
+{
+	ssize_t ret, done = 0;
+
+retry:
+	ret = read(fd, buf + done, count - done);
+	if (ret < 0)
+		return ret;
+
+	done += ret;
+
+	if (ret == 0 /* EOF */ || done == count)
+		return done;
+	else
+		goto retry;
+}
+
 int main(int argc,char *argv[])
 {
 	int fd, val, ret, size, wrote, len;
@@ -66,8 +83,14 @@ int main(int argc,char *argv[])
 	else
 		len = 256;
 
+	if (len > sizeof(buf)) {
+		printf("huh, writesize (%d) bigger than buffer (%zu)\n",
+				len, sizeof(buf));
+		return ENOMEM;
+	}
+
 	wrote = 0;
-	while ((size = read(0, buf, len))) {
+	while ((size = xread(0, buf, len))) {
 		if (size < 0) {
 			perror("read()");
 			return errno;
