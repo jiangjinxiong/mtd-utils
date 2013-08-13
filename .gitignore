@@ -18,6 +18,7 @@
 #
 # Our programs
 #
+/arm_v5t_le
 /doc_loadbios
 /docfdisk
 /flash_erase

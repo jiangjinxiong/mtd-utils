@@ -67,7 +67,7 @@
 #include <getopt.h>
 #ifndef WITHOUT_XATTR
 #include <sys/xattr.h>
-#include <sys/acl.h>
+#include "acl.h"
 #endif
 #include <byteswap.h>
 #include <crc32.h>

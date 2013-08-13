@@ -120,7 +120,6 @@ static void process_options(int argc, char * const argv[])
 			{"quiet", no_argument, 0, 'q'},
 			{"start", required_argument, 0, 's'},
 			{"autoplace", no_argument, 0, 'a'},
-                        {"f-tfc", no_argument, 0, 'f'},
 			{0, 0, 0, 0},
 		};
 
@@ -180,8 +179,6 @@ static void process_options(int argc, char * const argv[])
 		case '?':
 			error++;
 			break;
-                case 'f':
-			break;
 		}
 	}
 
@@ -234,7 +231,7 @@ static void erase_buffer(void *buffer, size_t size)
  */
 int main(int argc, char * const argv[])
 {
-        int fd = -1;
+	int fd = -1;
 	int ifd = -1;
 	int pagelen;
 	long long imglen = 0;
@@ -266,6 +263,7 @@ int main(int argc, char * const argv[])
 	if (!mtd_desc)
 		errmsg_die("can't initialize libmtd");
 
+
 	/* Fill in MTD device capability structure */
 	if (mtd_get_dev_info(mtd_desc, mtd_device, &mtd) < 0)
 		errmsg_die("mtd_get_dev_info failed");
@@ -274,8 +272,13 @@ int main(int argc, char * const argv[])
 	 * Pretend erasesize is specified number of blocks - to match jffs2
 	 *   (virtual) block size
 	 * Use this value throughout unless otherwise necessary
+
+
+           ebsize_aligned=0x20000,mtd.eb_size=0x20000,blockalign=1;mtdoffset=0;mtd.min_io_size=0x800;
+
 	 */
 	ebsize_aligned = mtd.eb_size * blockalign;
+        fprintf(stdout, "%s:%s:%d:gxl111,blockalign=%x,%x,%x,%lld,%x\n", __FILE__,__func__,__LINE__,ebsize_aligned,mtd.eb_size,blockalign,mtdoffset,mtd.min_io_size);
 
 	if (mtdoffset & (mtd.min_io_size - 1))
 		errmsg_die("The start address is not page-aligned !\n"
@@ -283,12 +286,15 @@ int main(int argc, char * const argv[])
 			   mtd.min_io_size);
 
 	/* Select OOB write mode */
+        printf(  "%s:%s:%d:gxl111,blockalign=%x,%x\n", __FILE__,__func__,__LINE__,noecc,autoplace);
 	if (noecc)
 		write_mode = MTD_OPS_RAW;
 	else if (autoplace)
 		write_mode = MTD_OPS_AUTO_OOB;
-	else
+	else{
 		write_mode = MTD_OPS_PLACE_OOB;
+                printf(  "%s:%s:%d:gxl111\n", __FILE__,__func__,__LINE__);
+        }
 
 	if (noecc)  {
 		ret = ioctl(fd, MTDFILEMODE, MTD_FILE_MODE_RAW);
@@ -310,55 +316,42 @@ int main(int argc, char * const argv[])
 
 	if (ifd == -1) {
 		perror(img);
-                libmtd_close(mtd_desc);
-	        close(fd);
-                errmsg_die("open imgfile is failed");
-		//goto closeall;
+		goto closeall;
 	}
-
+     
 	pagelen = mtd.min_io_size + ((writeoob) ? mtd.oob_size : 0);
-
+  printf(  "%s:%s:%d:gxl111,pagelen=%x,%x,%x\n", __FILE__,__func__,__LINE__,pagelen,writeoob,mtd.oob_size);
+struct stat st;
 	if (ifd == STDIN_FILENO) {
 		imglen = inputsize ? : pagelen;
 		if (inputskip) {
-                        close(ifd);
-                        libmtd_close(mtd_desc);
-	                close(fd);
-			errmsg_die("seeking stdin not supported");
-			//goto closeall;
+			errmsg("seeking stdin not supported");
+			goto closeall;
 		}
 	} else {
 		if (!inputsize) {
-			struct stat st;
+			
 			if (fstat(ifd, &st)) {
-                                close(ifd);
-                                libmtd_close(mtd_desc);
-	                        close(fd);
-			        errmsg_die("unable to stat input image");
-				//goto closeall;
+				sys_errmsg("unable to stat input image");
+				goto closeall;
 			}
 			imglen = st.st_size - inputskip;
 		} else
 			imglen = inputsize;
 
 		if (inputskip && lseek(ifd, inputskip, SEEK_CUR) == -1) {
-                        close(ifd);
-                        libmtd_close(mtd_desc);
-	                close(fd);
-			errmsg_die("lseek input by failed");
-			//goto closeall;
+			sys_errmsg("lseek input by %lld failed", inputskip);
+			goto closeall;
 		}
 	}
+       printf(  "%s:%s:%d:gxl111,inputsize=%lld,%x,%lld,%x\n", __FILE__,__func__,__LINE__,inputsize,st.st_size,inputskip,imglen);
+	/* Check, if file is page-aligned mtd.size=4194304,kernel_szie<4M */
 
-	/* Check, if file is page-aligned */
+ printf(  "%s:%s:%d:gxl111,pad=%x,%lld,%lld\n", __FILE__,__func__,__LINE__,pad,mtd.size,mtdoffset);
 	if (!pad && (imglen % pagelen) != 0) {
 		fprintf(stderr, "Input file is not page-aligned. Use the padding "
 				 "option.\n");
-		//goto closeall;
-                close(ifd);
-                libmtd_close(mtd_desc);
-	        close(fd);
-	        errmsg_die("Input file is not page-aligned. Use the padding ");
+		goto closeall;
 	}
 
 	/* Check, if length fits into device */
@@ -366,11 +359,8 @@ int main(int argc, char * const argv[])
 		fprintf(stderr, "Image %lld bytes, NAND page %d bytes, OOB area %d"
 				" bytes, device size %lld bytes\n",
 				imglen, pagelen, mtd.oob_size, mtd.size);
-                close(ifd);
-                libmtd_close(mtd_desc);
-	        close(fd);
-		errmsg_die("Input file does not fit into device");
-		//goto closeall;
+		sys_errmsg("Input file does not fit into device");
+		goto closeall;
 	}
 
 	/*
@@ -378,11 +368,15 @@ int main(int argc, char * const argv[])
 	 * for one eraseblock. The order of operations here matters; if ebsize
 	 * and pagelen are large enough, then "ebsize_aligned * pagelen" could
 	 * overflow a 32-bit data type.
+
+          filebuf_max=ebsize_aligned =0x20000;
 	 */
+
+
 	filebuf_max = ebsize_aligned / mtd.min_io_size * pagelen;
 	filebuf = xmalloc(filebuf_max);
 	erase_buffer(filebuf, filebuf_max);
-
+        printf(  "%s:%s:%d:gxl111,pad=%x,%x\n", __FILE__,__func__,__LINE__, ebsize_aligned ,filebuf_max);
 	/*
 	 * Get data from input and write to the device while there is
 	 * still input to read and we are still within the device
@@ -390,6 +384,8 @@ int main(int argc, char * const argv[])
 	 * length is simply a quasi-boolean flag whose values are page
 	 * length or zero.
 	 */
+
+        printf(  "%s:%s:%d:gxl111,pad=%x,%x,%x,%x\n", __FILE__,__func__,__LINE__, imglen ,(int)writebuf,(int)filebuf,(int)filebuf_len);
 	while ((imglen > 0 || writebuf < filebuf + filebuf_len)
 		&& mtdoffset < mtd.size) {
 		/*
@@ -422,16 +418,12 @@ int main(int argc, char * const argv[])
 			/* Check all the blocks in an erase block for bad blocks */
 			if (noskipbad)
 				continue;
-
+                        printf(  "%s:%s:%d:gxl111,pad=%x,%x,%x,%x\n", __FILE__,__func__,__LINE__, blockstart ,writebuf,filebuf,filebuf_len);
 			do {
 				ret = mtd_is_bad(&mtd, fd, offs / ebsize_aligned);
 				if (ret < 0) {
-                                        close(ifd);
-	                                libmtd_close(mtd_desc);
-	                                free(filebuf);
-	                                close(fd);
-					errmsg_die("%s: MTD get bad block failed", mtd_device);
-					//goto closeall;
+					sys_errmsg("%s: MTD get bad block failed", mtd_device);
+					goto closeall;
 				} else if (ret == 1) {
 					baderaseblock = true;
 					if (!quiet)
@@ -444,12 +436,8 @@ int main(int argc, char * const argv[])
 					mtdoffset = blockstart + ebsize_aligned;
 
 					if (mtdoffset > mtd.size) {
-                                                close(ifd);
-	                                        libmtd_close(mtd_desc);
-	                                        free(filebuf);
-	                                        close(fd);
-						errmsg_die("too many bad blocks, cannot complete request");
-						//goto closeall;
+						errmsg("too many bad blocks, cannot complete request");
+						goto closeall;
 					}
 				}
 
@@ -459,24 +447,22 @@ int main(int argc, char * const argv[])
 		}
 
 		/* Read more data from the input if there isn't enough in the buffer */
+
+               printf(  "%s:%s:%d:gxl111,pad=%x,%x,%x\n", __FILE__,__func__,__LINE__, writebuf,filebuf,filebuf_len);
 		if (writebuf + mtd.min_io_size > filebuf + filebuf_len) {
 			size_t readlen = mtd.min_io_size;
 			size_t alreadyread = (filebuf + filebuf_len) - writebuf;
 			size_t tinycnt = alreadyread;
 			ssize_t cnt = 0;
 
+                        printf(  "%s:%s:%d:gxl111,pad=%x,%x,%x,%x\n", __FILE__,__func__,__LINE__, filebuf,filebuf,filebuf_len,tinycnt);
 			while (tinycnt < readlen) {
 				cnt = read(ifd, writebuf + tinycnt, readlen - tinycnt);
 				if (cnt == 0) { /* EOF */
 					break;
 				} else if (cnt < 0) {
-                                        close(ifd);
-	                                libmtd_close(mtd_desc);
-	                                free(filebuf);
-	                                close(fd);
-				        errmsg_die("File I/O error on input");
-					//perror("File I/O error on input");
-					//goto closeall;
+					perror("File I/O error on input");
+					goto closeall;
 				}
 				tinycnt += cnt;
 			}
@@ -500,12 +486,7 @@ int main(int argc, char * const argv[])
 					fprintf(stderr, "Unexpected EOF. Expecting at least "
 							"%zu more bytes. Use the padding option.\n",
 							readlen - tinycnt);
-                                        close(ifd);
-	                                libmtd_close(mtd_desc);
-	                                free(filebuf);
-	                                close(fd);
-				        errmsg_die("Unexpected EOF. Expecting at least ");
-					//goto closeall;
+					goto closeall;
 				}
 				erase_buffer(writebuf + tinycnt, readlen - tinycnt);
 			}
@@ -517,29 +498,26 @@ int main(int argc, char * const argv[])
 				/* No more bytes - we are done after writing the remaining bytes */
 				imglen = 0;
 			}
+                        printf(  "%s:%s:%d:gxl111,pad=%x,%x,%x\n", __FILE__,__func__,__LINE__, filebuf_len,readlen,alreadyread);
 		}
 
 		if (writeoob) {
 			oobbuf = writebuf + mtd.min_io_size;
-
+                        printf(  "%s:%s:%d:gxl111,pad=%x\n", __FILE__,__func__,__LINE__, writebuf);
 			/* Read more data for the OOB from the input if there isn't enough in the buffer */
 			if (oobbuf + mtd.oob_size > filebuf + filebuf_len) {
 				size_t readlen = mtd.oob_size;
 				size_t alreadyread = (filebuf + filebuf_len) - oobbuf;
 				size_t tinycnt = alreadyread;
-				ssize_t cnt=-1;
-
+				ssize_t cnt;
+                                printf(  "%s:%s:%d:gxl111,pad=%x,%x,%x\n", __FILE__,__func__,__LINE__, filebuf,filebuf_len,oobbuf);
 				while (tinycnt < readlen) {
 					cnt = read(ifd, oobbuf + tinycnt, readlen - tinycnt);
 					if (cnt == 0) { /* EOF */
 						break;
 					} else if (cnt < 0) {
-						close(ifd);
-	                                        libmtd_close(mtd_desc);
-	                                        free(filebuf);
-	                                        close(fd);
-				                errmsg_die("File I/O error on input");
-						//goto closeall;
+						perror("File I/O error on input");
+						goto closeall;
 					}
 					tinycnt += cnt;
 				}
@@ -547,12 +525,7 @@ int main(int argc, char * const argv[])
 				if (tinycnt < readlen) {
 					fprintf(stderr, "Unexpected EOF. Expecting at least "
 							"%zu more bytes for OOB\n", readlen - tinycnt);
-                                        close(ifd);
-	                                libmtd_close(mtd_desc);
-	                                free(filebuf);
-	                                close(fd);
-				        errmsg_die("Unexpected EOF. Expecting at least ");
-					//goto closeall;
+					goto closeall;
 				}
 
 				filebuf_len += readlen - alreadyread;
@@ -573,16 +546,12 @@ int main(int argc, char * const argv[])
 				writeoob ? oobbuf : NULL,
 				writeoob ? mtd.oob_size : 0,
 				write_mode);
+              
 		if (ret) {
 			long long i;
 			if (errno != EIO) {
 				sys_errmsg("%s: MTD write failure", mtd_device);
-                                close(ifd);
-	                        libmtd_close(mtd_desc);
-	                        free(filebuf);
-	                        close(fd);
-				errmsg_die("MTD write failure");
-				//goto closeall;
+				goto closeall;
 			}
 
 			/* Must rewind to blockstart if we can */
@@ -594,15 +563,8 @@ int main(int argc, char * const argv[])
 				if (mtd_erase(mtd_desc, &mtd, fd, i / mtd.eb_size)) {
 					int errno_tmp = errno;
 					sys_errmsg("%s: MTD Erase failure", mtd_device);
-					if (errno_tmp != EIO) {
-                                                //sys_errmsg("%s: MTD write failure", mtd_device);
-                                                close(ifd);
-	                                        libmtd_close(mtd_desc);
-	                                        free(filebuf);
-	                                        close(fd);
-				                errmsg_die("Erasing failed write from %#08llx",blockstart);
-						//goto closeall;
-                                        }
+					if (errno_tmp != EIO)
+						goto closeall;
 				}
 			}
 
@@ -610,12 +572,8 @@ int main(int argc, char * const argv[])
 				fprintf(stderr, "Marking block at %08llx bad\n",
 						mtdoffset & (~mtd.eb_size + 1));
 				if (mtd_mark_bad(&mtd, fd, mtdoffset / mtd.eb_size)) {
-                                        close(ifd);
-	                                libmtd_close(mtd_desc);
-	                                free(filebuf);
-	                                close(fd);
-				        errmsg_die("MTD Mark bad block failure");
-					//goto closeall;
+					sys_errmsg("%s: MTD Mark bad block failure", mtd_device);
+					goto closeall;
 				}
 			}
 			mtdoffset = blockstart + ebsize_aligned;
@@ -627,8 +585,7 @@ int main(int argc, char * const argv[])
 	}
 
 	failed = false;
-        warnmsg("update is sucessfull by nandwrite!!!");
-/*
+
 closeall:
 	close(ifd);
 	libmtd_close(mtd_desc);
@@ -636,9 +593,12 @@ closeall:
 	close(fd);
 
 	if (failed || (ifd != STDIN_FILENO && imglen > 0)
-		   || (writebuf < filebuf + filebuf_len))
-		sys_errmsg_die("Data was only partially written due to error");
+		   || (writebuf < filebuf + filebuf_len)) {
 
-*/
+		sys_errmsg_die("Data was only partially written due to error");
+                return -1;
+        }
+
+	/* Return happy */
 	return EXIT_SUCCESS;
 }

@@ -4,7 +4,7 @@
 VERSION = 1.5.0
 
 CPPFLAGS += -D_GNU_SOURCE -I./include -I$(BUILDDIR)/include -I./ubi-utils/include $(ZLIBCPPFLAGS) $(LZOCPPFLAGS)
-
+CROSS=arm_v5t_le-
 ifeq ($(WITHOUT_XATTR), 1)
   CPPFLAGS += -DWITHOUT_XATTR
 endif
@@ -27,11 +27,11 @@ MTD_BINS = \
 	serve_image recv_image \
 	sumtool jffs2reader
 UBI_BINS = \
-	ubiupdatevol ubimkvol ubirmvol ubicrc32 ubinfo ubiattach \
-	ubidetach ubinize ubiformat ubirename mtdinfo ubirsvol
+#	ubiupdatevol ubimkvol ubirmvol ubicrc32 ubinfo ubiattach \
+#	ubidetach ubinize ubiformat ubirename mtdinfo ubirsvol
 
 BINS = $(MTD_BINS)
-BINS += mkfs.ubifs/mkfs.ubifs
+#BINS += mkfs.ubifs/mkfs.ubifs
 BINS += $(addprefix ubi-utils/,$(UBI_BINS))
 SCRIPTS = flash_eraseall
 
