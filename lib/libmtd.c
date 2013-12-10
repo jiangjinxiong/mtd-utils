@@ -403,6 +403,8 @@ static int type_str2int(const char *str)
 {
 	if (!strcmp(str, "nand"))
 		return MTD_NANDFLASH;
+	if (!strcmp(str, "mlc-nand"))
+		return MTD_MLCNANDFLASH;
 	if (!strcmp(str, "nor"))
 		return MTD_NORFLASH;
 	if (!strcmp(str, "rom"))
@@ -774,7 +776,8 @@ int mtd_get_dev_info1(libmtd_t desc, int mtd_num, struct mtd_dev_info *mtd)
 
 	mtd->eb_cnt = mtd->size / mtd->eb_size;
 	mtd->type = type_str2int(mtd->type_str);
-	mtd->bb_allowed = !!(mtd->type == MTD_NANDFLASH);
+	mtd->bb_allowed = !!(mtd->type == MTD_NANDFLASH ||
+				mtd->type == MTD_MLCNANDFLASH);
 
 	return 0;
 }
